@@ -73,7 +73,6 @@ public class GUI extends JFrame {
 				// Try to patch and copy jar
 				try {
 					Main.patchJSON(version, username);
-					Main.copyJar(version);
 				} catch (IOException e1) {
 					e1.printStackTrace();
 					responseMessage.setText("Error IOException");

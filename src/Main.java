@@ -1,16 +1,13 @@
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 
-import org.json.JSONObject;
-
 import com.google.common.io.Files;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 public class Main {
 	static FilenameFilter versionFilter = new FilenameFilter() {
@@ -39,62 +36,18 @@ public class Main {
 	static boolean checkInput(String version, String username) {
 		File versionsFolder = new File(MCDir(), "versions");
 		File versionSubFolder = new File(versionsFolder, version);
-		File jarFile = new File(versionSubFolder, version + ".jar");
 		File jsonFile = new File(versionSubFolder, version + ".json");
-		if (username.isEmpty() || (!versionSubFolder.isDirectory())
-				|| (!jarFile.isFile()) || (!jsonFile.isFile())) {
+		if (username.isEmpty() || (!versionSubFolder.isDirectory()) || (!jsonFile.isFile())) {
 			return false;
 		} else {
 			return true;
 		}
 	}
 
-	static void copyJar(String version) throws IOException {
-		String newVersion = version + "-nodemo";
-		File versionsDir = new File(MCDir(), "versions");
-		File oldVersionDir = new File(versionsDir, version);
-		File oldJar = new File(oldVersionDir, version + ".jar");
-		File newVersionDir = new File(versionsDir, newVersion);
-		File newJar = new File(newVersionDir, newVersion + ".jar");
-		newVersionDir.mkdirs();
-		newJar.delete();
-		copyFile(oldJar, newJar);
-	}
-
-	@SuppressWarnings("resource")
-	static void copyFile(File sourceFile, File destFile) throws IOException {
-		if (!destFile.exists()) {
-			destFile.createNewFile();
-		}
-
-		FileChannel source = null;
-		FileChannel destination = null;
-		try {
-			source = new FileInputStream(sourceFile).getChannel();
-			destination = new FileOutputStream(destFile).getChannel();
-
-			// previous code: destination.transferFrom(source, 0,
-			// source.size());
-			// to avoid infinite loops, should be:
-			long count = 0;
-			long size = source.size();
-			while ((count += destination.transferFrom(source, count, size
-					- count)) < size)
-				;
-		} finally {
-			if (source != null) {
-				source.close();
-			}
-			if (destination != null) {
-				destination.close();
-			}
-		}
-	}
-
 	static String readFile(File file) {
 		String x = null;
 		try {
-			x = Files.toString(file, Charset.forName("UTF-8"));
+			x = Files.toString(file, Charset.defaultCharset());
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -104,29 +57,40 @@ public class Main {
 	static void patchJSON(String version, String username) throws IOException {
 		File versionsDir = new File(MCDir(), "versions");
 		File oldVersionDir = new File(versionsDir, version);
+		File newVersionDir = new File(versionsDir, version + "-nodemo");
 		File oldJsonFile = new File(oldVersionDir, version + ".json");
+		File newJsonFile = new File(newVersionDir, version + "-nodemo.json");
+		
 		if (!oldJsonFile.isFile()) {
 			throw new RuntimeException(
 					"The Version Config File Does Not Exist: "
 							+ oldJsonFile.getPath());
 		}
-		String data = readFile(oldJsonFile);
-		JSONObject jsonObject = new JSONObject(data);
-		jsonObject.put("id", version + "-nodemo");
-		String oldargs = (String) jsonObject.get("minecraftArguments");
-		oldargs = oldargs.replace("${auth_player_name}", username);
-		jsonObject.put("minecraftArguments", oldargs + " --");
-		File newVersionDir = new File(versionsDir, version + "-nodemo");
-		newVersionDir.mkdir();
-		File newJsonFile = new File(newVersionDir, version + "-nodemo.json");
-		writeFile(jsonObject.toString(), newJsonFile.getPath(),
-				Charset.forName("UTF-8"));
+		
+		GsonBuilder gsonBuilder = new GsonBuilder();
+		Gson gson = gsonBuilder.create();
+		
+		Version oldVersion = gson.fromJson(readFile(oldJsonFile), Version.class);
+		
+		if(oldVersion.getJar() == null){
+		String[] names = oldVersion.getId().split("-");
+		oldVersion.setJar(names[0]);
+		}
+		
+		String oldArgs = oldVersion.getMinecraftArguments();
+		oldArgs = oldArgs.replace("${auth_player_name}", username);
+		oldVersion.setMinecraftArguments(oldArgs + " --");
+		oldVersion.setInheritsFrom(oldVersion.getId());
+		oldVersion.setId(oldVersion.getId() + "-nodemo");
+		
+		String jsonString = gson.toJson(oldVersion);
+		writeFile(jsonString, newJsonFile, Charset.defaultCharset());
 	}
 
-	static void writeFile(String data, String path, Charset encoding)
-			throws IOException {
-		new File(path).delete();
-		BufferedWriter writer = new BufferedWriter(new FileWriter(path));
+	static void writeFile(String data, File file, Charset encoding) throws IOException {
+		file.delete();
+		file.getParentFile().mkdirs();
+		BufferedWriter writer = new BufferedWriter(new FileWriter(file));
 		writer.write(data);
 		writer.close();
 	}
@@ -178,35 +142,35 @@ public class Main {
 	}
 
 	public static File MCDir() {
-		String user_home = System.getProperty("user.home", ".");
-		File file = null;
-		String name = new String("minecraft");
+		String userHome = System.getProperty("user.home", ".");
+		File mcDir = null;
+		String name = "minecraft";
 		String appdata = System.getenv("APPDATA");
 		switch (getPlatform().id) {
 		case 0: // null
 		case 1: // Linux
-			file = new File(user_home, "." + name);
+			mcDir = new File(userHome, "." + name);
 			break;
 		case 2: // PC
 			if (appdata != null) {
-				file = new File(appdata, "." + name);
-				System.out.println("APPDATA");
+				mcDir = new File(appdata, "." + name);
+				System.out.println("Using APPDATA");
 			} else {
-				System.out.println("APPDATA is NULL (using user.home)");
-				file = new File(user_home, '.' + name);
+				System.out.println("APPDATA is null (using user.home)");
+				mcDir = new File(userHome, '.' + name);
 			}
 			break;
 		case 3: // Mac
-			file = new File(user_home, "Library/Application Support/" + name);
+			mcDir = new File(userHome, "Library/Application Support/" + name);
 			break;
 		default: // Other
-			file = new File(user_home, name);
+			mcDir = new File(userHome, name);
 			break;
 		}
-		if (!file.isDirectory()) {
+		if (!mcDir.isDirectory()) {
 			throw new RuntimeException(
-					"The Minecraft Working Dir Does Not Exist: " + file);
+					"The Minecraft Working Dir Does Not Exist: " + mcDir);
 		}
-		return file;
+		return mcDir;
 	}
 }
