@@ -33,7 +33,7 @@ public class GUI extends JFrame {
 		// Setup window
 		setSize(WIDTH, HEIGHT);
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
-		setTitle("Minecraft UnDemo");
+		setTitle("Minecraft UnDemo v0.2");
 
 		// Setup layout
 		Container contentPane = getContentPane();
