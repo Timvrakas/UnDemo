@@ -55,34 +55,42 @@ public class Main {
 	}
 
 	static void patchJSON(String version, String username) throws IOException {
+		//This is where the magic happens
+		//define directories and files
 		File versionsDir = new File(MCDir(), "versions");
 		File oldVersionDir = new File(versionsDir, version);
 		File newVersionDir = new File(versionsDir, version + "-nodemo");
 		File oldJsonFile = new File(oldVersionDir, version + ".json");
 		File newJsonFile = new File(newVersionDir, version + "-nodemo.json");
 		
+		//check for the source .json file
 		if (!oldJsonFile.isFile()) {
 			throw new RuntimeException(
 					"The Version Config File Does Not Exist: "
 							+ oldJsonFile.getPath());
 		}
 		
+		//create new gson/builder
 		GsonBuilder gsonBuilder = new GsonBuilder();
 		Gson gson = gsonBuilder.create();
 		
+		//convert json to Version object
 		Version oldVersion = gson.fromJson(readFile(oldJsonFile), Version.class);
 		
+		//if need be, define "jar" value
 		if(oldVersion.getJar() == null){
 		String[] names = oldVersion.getId().split("-");
 		oldVersion.setJar(names[0]);
 		}
 		
+		//modify Version object
 		String oldArgs = oldVersion.getMinecraftArguments();
 		oldArgs = oldArgs.replace("${auth_player_name}", username);
-		oldVersion.setMinecraftArguments(oldArgs + " --");
+		oldVersion.setMinecraftArguments(oldArgs + " -");
 		oldVersion.setInheritsFrom(oldVersion.getId());
 		oldVersion.setId(oldVersion.getId() + "-nodemo");
 		
+		//write object to file
 		String jsonString = gson.toJson(oldVersion);
 		writeFile(jsonString, newJsonFile, Charset.defaultCharset());
 	}
