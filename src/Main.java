@@ -86,7 +86,7 @@ public class Main {
 		//modify Version object
 		String oldArgs = oldVersion.getMinecraftArguments();
 		oldArgs = oldArgs.replace("${auth_player_name}", username);
-		oldVersion.setMinecraftArguments(oldArgs + " -");
+		oldVersion.setMinecraftArguments(oldArgs + " --");
 		oldVersion.setInheritsFrom(oldVersion.getId());
 		oldVersion.setId(oldVersion.getId() + "-nodemo");
 		
